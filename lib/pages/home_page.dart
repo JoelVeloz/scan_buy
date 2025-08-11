@@ -71,8 +71,19 @@ class _HomePageState extends State<HomePage> {
                         final name =
                             product.getStringValue('name') ?? 'Sin nombre';
                         final price = product.getDoubleValue('price') ?? 0.0;
+                        final imageFile = product.getStringValue('image');
 
                         return ListTile(
+                          leading: imageFile != null
+                              ? Image.network(
+                                  'https://scan-buy-local.recargaloya.com/api/files/products/${product.id}/$imageFile',
+                                  width: 50,
+                                  height: 50,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const Icon(Icons.image_not_supported),
+                                )
+                              : const Icon(Icons.image_not_supported),
                           title: Text(name),
                           subtitle: Text(
                             'Precio: \$${price.toStringAsFixed(2)}',
