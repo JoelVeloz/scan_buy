@@ -1,39 +1,107 @@
 import 'package:flutter/material.dart';
 import 'package:pocketbase/pocketbase.dart';
+import 'package:scan_buy/pages/product_detail.dart';
 
 final pb = PocketBase('https://scan-buy-local.recargaloya.com');
 
-class HomePage extends StatefulWidget {
-  final String? lastCode;
-
-  const HomePage({super.key, this.lastCode});
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomePageState extends State<HomePage> {
-  List<RecordModel> products = [];
-  bool isLoading = true;
-  String? error;
+class _HomeScreenState extends State<HomeScreen> {
+  int _currentIndex = 0;
+
+  final List<Map<String, String>> _categorias = const [
+    {
+      'titulo': 'Lácteos',
+      'img':
+          'https://images.unsplash.com/photo-1576045057995-568f588f82fb?q=80&w=800',
+    },
+    {
+      'titulo': 'Frutas',
+      'img':
+          'https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=800',
+    },
+    {
+      'titulo': 'Verduras',
+      'img':
+          'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?q=80&w=800',
+    },
+    {
+      'titulo': 'Carnes',
+      'img':
+          'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?q=80&w=800',
+    },
+  ];
+
+  List<RecordModel> _productos = [];
+  bool _isLoading = true;
+  String? _error;
+
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    fetchProducts();
+    _fetchProducts();
+
+    _searchController.addListener(() {
+      _searchProducts(_searchController.text.trim());
+    });
   }
 
-  Future<void> fetchProducts() async {
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchProducts() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
     try {
       final records = await pb.collection('products').getFullList();
       setState(() {
-        products = records;
-        isLoading = false;
+        _productos = records;
+        _isLoading = false;
       });
     } catch (e) {
       setState(() {
-        error = 'Error al cargar productos: $e';
-        isLoading = false;
+        _error = 'Error cargando productos: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _searchProducts(String query) async {
+    if (query.isEmpty) {
+      _fetchProducts();
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final records = await pb
+          .collection('products')
+          .getFullList(filter: "name ?~ '$query'");
+      setState(() {
+        _productos = records;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Error en búsqueda: $e';
+        _isLoading = false;
       });
     }
   }
@@ -41,58 +109,266 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Home Page')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            widget.lastCode == null
-                ? const Text(
-                    "Aún no has escaneado ningún código",
-                    style: TextStyle(fontSize: 18),
-                  )
-                : Text(
-                    "Último código: ${widget.lastCode}",
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+      backgroundColor: const Color(0xFFFFF6E9),
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(child: _HeaderBanner()),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Busca tu producto...',
+                    prefixIcon: const Icon(Icons.search),
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: const BorderSide(color: Colors.black12),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: const BorderSide(color: Colors.black12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      borderSide: BorderSide(
+                        color: Colors.black.withOpacity(0.3),
+                      ),
                     ),
                   ),
-            const SizedBox(height: 24),
-            Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : error != null
-                  ? Center(child: Text(error!))
-                  : ListView.builder(
-                      itemCount: products.length,
-                      itemBuilder: (context, index) {
-                        final product = products[index];
-                        final name =
-                            product.getStringValue('name') ?? 'Sin nombre';
-                        final price = product.getDoubleValue('price') ?? 0.0;
-                        final imageFile = product.getStringValue('image');
-
-                        return ListTile(
-                          leading: imageFile != null
-                              ? Image.network(
-                                  'https://scan-buy-local.recargaloya.com/api/files/products/${product.id}/$imageFile',
-                                  width: 50,
-                                  height: 50,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const Icon(Icons.image_not_supported),
-                                )
-                              : const Icon(Icons.image_not_supported),
-                          title: Text(name),
-                          subtitle: Text(
-                            'Precio: \$${price.toStringAsFixed(2)}',
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Text(
+                  'Categorías',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 96,
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _categorias.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    final c = _categorias[index];
+                    return _CategoriaChip(titulo: c['titulo']!, img: c['img']!);
+                  },
+                ),
+              ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              sliver: _isLoading
+                  ? SliverFillRemaining(
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  : _error != null
+                  ? SliverFillRemaining(child: Center(child: Text(_error!)))
+                  : SliverGrid(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            childAspectRatio: 0.78,
                           ),
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final p = _productos[index];
+                        final nombre = p.getStringValue('name') ?? 'Sin nombre';
+                        final precioDouble = p.getDoubleValue('price') ?? 0.0;
+                        final precio = '\$${precioDouble.toStringAsFixed(2)}';
+                        final unidad = p.getStringValue('unit') ?? '';
+                        final imgFile = p.getStringValue('image');
+
+                        final imgUrl = (imgFile != null && imgFile.isNotEmpty)
+                            ? 'https://scan-buy-local.recargaloya.com/api/files/products/${p.id}/$imgFile'
+                            : 'https://via.placeholder.com/150';
+
+                        return _ProductCard(
+                          nombre: nombre,
+                          precio: precio,
+                          unidad: unidad,
+                          img: imgUrl,
+                          productId: p.id, // pasa el id aquí
                         );
-                      },
+                      }, childCount: _productos.length),
                     ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeaderBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 92,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4B048),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Image.asset(
+            'assets/logo.png',
+            height: 40, // ajusta la altura que quieras
+            fit: BoxFit.contain,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategoriaChip extends StatelessWidget {
+  final String titulo;
+  final String img;
+  const _CategoriaChip({required this.titulo, required this.img});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 120,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: AspectRatio(
+              aspectRatio: 2.5,
+              child: Image.network(img, fit: BoxFit.cover),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.35),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              titulo,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProductCard extends StatelessWidget {
+  final String nombre;
+  final String precio;
+  final String unidad;
+  final String img;
+  final String productId;
+
+  const _ProductCard({
+    required this.nombre,
+    required this.precio,
+    required this.unidad,
+    required this.img,
+    required this.productId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      elevation: 0,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          // Navegar a detalle con productId
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ProductDetailScreen(productId: productId),
+            ),
+          );
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.black12),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
+                  child: Container(
+                    color: const Color(0xFFF7F7F7),
+                    width: double.infinity,
+                    child: Image.network(img, fit: BoxFit.cover),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      nombre,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(
+                          precio,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        Text(
+                          unidad,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
