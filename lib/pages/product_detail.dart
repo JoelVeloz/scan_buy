@@ -1,5 +1,9 @@
+import 'dart:ffi';
+
 import 'package:flutter/material.dart';
 import 'package:pocketbase/pocketbase.dart';
+import 'package:scan_buy/main.dart';
+import 'package:scan_buy/models/cart_storage.dart';
 import 'package:scan_buy/pages/cart_page.dart';
 import 'package:scan_buy/models/cart_item.dart';
 
@@ -7,8 +11,13 @@ final pb = PocketBase('https://scan-buy-local.recargaloya.com');
 
 class ProductDetailScreen extends StatefulWidget {
   final String productId;
+  final Function(int) goToPage; // callback
 
-  const ProductDetailScreen({super.key, required this.productId});
+  const ProductDetailScreen({
+    super.key,
+    required this.productId,
+    required this.goToPage,
+  });
 
   @override
   State<ProductDetailScreen> createState() => _ProductDetailScreenState();
@@ -53,33 +62,24 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final nombre = _producto?.getStringValue('name') ?? '';
     final precioDouble = _producto?.getDoubleValue('price') ?? 0.0;
     final imgFile = _producto?.getStringValue('image');
+    final id = _producto?.id ?? '';
     final imgUrl = (imgFile != null && imgFile.isNotEmpty)
-        ? 'https://scan-buy-local.recargaloya.com/api/files/products/${_producto!.id}/$imgFile'
+        ? 'https://scan-buy-local.recargaloya.com/api/files/products/${id}/$imgFile'
         : 'https://via.placeholder.com/180';
 
     final nuevoItem = CartItem(
+      id: id,
       name: nombre,
       unitPrice: precioDouble,
       quantity: _cantidad,
       imageUrl: imgUrl,
     );
+    CartStorage.addItem(nuevoItem);
+    // Refrescar el carrito
+    cartKey.currentState?.refreshCart();
+    widget.goToPage(2);
 
-    setState(() {
-      // Si ya existe el producto en el carrito, suma cantidad
-      final index = carrito.indexWhere((item) => item.name == nuevoItem.name);
-      if (index >= 0) {
-        carrito[index].quantity += _cantidad;
-      } else {
-        carrito.add(nuevoItem);
-      }
-      _cantidad = 1; // reset cantidad al agregar
-    });
-
-    // Navega a la pantalla carrito con la lista de items
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => CartScreen(items: carrito)),
-    );
+    Navigator.pop(context);
   }
 
   @override
@@ -89,6 +89,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final precioDouble = _producto?.getDoubleValue('price') ?? 0.0;
     final precio = '\$${precioDouble.toStringAsFixed(2)}';
     final imgFile = _producto?.getStringValue('image');
+    final int stock = _producto?.getIntValue('stock') ?? 0;
     final imgUrl = (imgFile != null && imgFile.isNotEmpty)
         ? 'https://scan-buy-local.recargaloya.com/api/files/products/${_producto!.id}/$imgFile'
         : 'https://via.placeholder.com/180';
@@ -202,14 +203,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             ],
                           ),
                           const SizedBox(height: 6),
-                          const _StockItem(
-                            tienda: 'SUP - MIRAFLORES',
-                            stock: '3 en stock',
-                          ),
-                          const _StockItem(
-                            tienda: 'SUP - MIRAFLORES',
-                            stock: '3 en stock',
-                          ),
+                          _StockItem(tienda: 'SUP - MIRAFLORES', stock: stock),
                           const Spacer(),
                           SizedBox(
                             width: double.infinity,
@@ -285,7 +279,7 @@ class _QuantitySelector extends StatelessWidget {
 
 class _StockItem extends StatelessWidget {
   final String tienda;
-  final String stock;
+  final int stock;
 
   const _StockItem({required this.tienda, required this.stock});
 
@@ -298,7 +292,11 @@ class _StockItem extends StatelessWidget {
           Text(tienda, style: const TextStyle(fontSize: 14)),
           const SizedBox(width: 6),
           Text(
-            stock,
+            stock.toString(),
+            style: const TextStyle(fontSize: 14, color: Colors.green),
+          ),
+          Text(
+            " items en stock",
             style: const TextStyle(fontSize: 14, color: Colors.green),
           ),
         ],

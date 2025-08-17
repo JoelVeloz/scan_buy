@@ -23,8 +23,29 @@ class _ScanPageState extends State<ScanPage> {
     }
   }
 
+  void _refreshScanner() {
+    setState(() {
+      _isScanning = true;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return MobileScanner(onDetect: _onDetect);
+    return Scaffold(
+      body: Stack(
+        children: [
+          MobileScanner(onDetect: _onDetect),
+          if (!_isScanning)
+            Positioned(
+              bottom: 30,
+              right: 30,
+              child: FloatingActionButton(
+                onPressed: _refreshScanner,
+                child: const Icon(Icons.refresh),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }

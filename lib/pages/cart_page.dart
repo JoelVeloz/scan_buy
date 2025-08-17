@@ -1,41 +1,43 @@
 import 'package:flutter/material.dart';
-import '../models/cart_item.dart'; // ajusta el import a tu ruta real
+import 'package:scan_buy/main.dart';
+import 'package:scan_buy/models/cart_storage.dart';
+import '../models/cart_item.dart';
 
 class CartScreen extends StatefulWidget {
-  final List<CartItem> items;
-  const CartScreen({super.key, required this.items});
+  const CartScreen({super.key});
 
   @override
-  State<CartScreen> createState() => _CartScreenState();
+  State<CartScreen> createState() => CartScreenState();
 }
 
-class _CartScreenState extends State<CartScreen> {
-  late List<CartItem> items;
+class CartScreenState extends State<CartScreen> {
+  Future<List<CartItem>> _cartFuture = CartStorage.loadCart();
 
-  @override
-  void initState() {
-    super.initState();
-    items = widget.items;
+  void refreshCart() {
+    print("Refreshing cart");
+    setState(() {
+      _cartFuture = CartStorage.loadCart();
+    });
+    // Refrescar de nuevo después de 5 segundos
+    Future.delayed(const Duration(microseconds: 500), () async {
+      final items = await CartStorage.loadCart();
+      setState(() {
+        _cartFuture = Future.value(
+          items,
+        ); // actualiza el FutureBuilder con los datos listos
+      });
+      print("Cart refreshed after 5 seconds");
+    });
   }
 
-  double get subtotal =>
+  double _calculateSubtotal(List<CartItem> items) =>
       items.fold(0, (sum, item) => sum + item.unitPrice * item.quantity);
-  double get impuestos => subtotal * 0.15;
-  double get total => subtotal + impuestos;
 
-  void _incrementQuantity(int index) {
-    setState(() {
-      items[index].quantity++;
-    });
-  }
+  double _calculateImpuestos(List<CartItem> items) =>
+      _calculateSubtotal(items) * 0.15;
 
-  void _decrementQuantity(int index) {
-    setState(() {
-      if (items[index].quantity > 1) {
-        items[index].quantity--;
-      }
-    });
-  }
+  double _calculateTotal(List<CartItem> items) =>
+      _calculateSubtotal(items) + _calculateImpuestos(items);
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +46,7 @@ class _CartScreenState extends State<CartScreen> {
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
-            // Header...
+            // Header
             SliverToBoxAdapter(
               child: Container(
                 padding: const EdgeInsets.symmetric(
@@ -52,116 +54,162 @@ class _CartScreenState extends State<CartScreen> {
                   vertical: 14,
                 ),
                 color: const Color(0xFFF4B048),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: const Icon(Icons.arrow_back, size: 26),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'Carrito',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 26),
-                  ],
+                child: const Center(
+                  child: Text(
+                    'Carrito',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
                 ),
               ),
             ),
 
-            // Lista de items
-            SliverList(
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final item = items[index];
-                return Container(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: const Color(0xFF2F80ED),
-                      width: 2,
-                    ),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          item.imageUrl,
-                          width: 54,
-                          height: 54,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
+            // Lista de items con FutureBuilder
+            SliverToBoxAdapter(
+              child: FutureBuilder<List<CartItem>>(
+                future: _cartFuture,
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final items = snapshot.data!;
+                  if (items.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              item.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
+                            Icon(
+                              Icons.shopping_cart_outlined,
+                              size: 80,
+                              color: Colors.orange.shade300,
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              "¡Tu carrito está vacío!",
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '\$${item.unitPrice.toStringAsFixed(2)}',
-                              style: const TextStyle(fontSize: 12),
+                            const SizedBox(height: 8),
+                            const Text(
+                              "Agrega productos para verlos aquí.",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.black54,
+                              ),
                             ),
+                            const SizedBox(height: 20),
                           ],
                         ),
                       ),
-                      _CantidadControl(
-                        cantidad: item.quantity,
-                        onDecrement: () => _decrementQuantity(index),
-                        onIncrement: () => _incrementQuantity(index),
-                      ),
-                    ],
-                  ),
-                );
-              }, childCount: items.length),
+                    );
+                  }
+
+                  return Column(
+                    children: items.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final item = entry.value;
+                      return _buildCartItem(item, index);
+                    }).toList(),
+                  );
+                },
+              ),
             ),
 
             // Totales
             SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _lineaTotal('Subtotal', subtotal),
-                    _lineaTotal('Impuestos (15%)', impuestos),
-                    const SizedBox(height: 6),
-                    _lineaTotal('Total', total, isBold: true),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'Por favor, acérquese a caja para realizar el pago. ✅',
-                      style: TextStyle(fontSize: 12),
+              child: FutureBuilder<List<CartItem>>(
+                future: _cartFuture,
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData || snapshot.data!.isEmpty)
+                    return const SizedBox();
+                  final items = snapshot.data!;
+                  final subtotal = _calculateSubtotal(items);
+                  final impuestos = _calculateImpuestos(items);
+                  final total = _calculateTotal(items);
+
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _lineaTotal('Subtotal', subtotal),
+                        _lineaTotal('Impuestos (15%)', impuestos),
+                        const SizedBox(height: 6),
+                        _lineaTotal('Total', total, isBold: true),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Por favor, acérquese a caja para realizar el pago. ✅',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildCartItem(CartItem item, int index) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFF2F80ED), width: 2),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.network(
+              item.imageUrl,
+              width: 54,
+              height: 54,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '\$${item.unitPrice.toStringAsFixed(2)}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          _CantidadControl(
+            cantidad: item.quantity,
+            onDecrement: () async {
+              await CartStorage.decrementItem(item.id);
+              refreshCart();
+            },
+            onIncrement: () async {
+              await CartStorage.incrementItem(item.id);
+              refreshCart();
+            },
+          ),
+        ],
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:scan_buy/models/cart_storage.dart';
 import 'package:scan_buy/pages/product_detail.dart';
 import 'package:scan_buy/pages/home_page.dart';
 import 'pages/cart_page.dart';
@@ -30,41 +31,54 @@ class MainNavigation extends StatefulWidget {
   State<MainNavigation> createState() => _MainNavigationState();
 }
 
+// GlobalKey para acceder al estado del CartScreen
+final GlobalKey<CartScreenState> cartKey = GlobalKey<CartScreenState>();
+
 class _MainNavigationState extends State<MainNavigation> {
   int _selectedIndex = 0;
 
-  // Aquí defines tu carrito como lista de CartItem
-  List<CartItem> carrito = [];
+  void goToPage(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+    if (index == 2) {
+      cartKey.currentState?.refreshCart();
+    }
+  }
 
   void _onCodeScanned(String code) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ProductDetailScreen(productId: code),
+        builder: (context) =>
+            ProductDetailScreen(productId: code, goToPage: goToPage),
       ),
     );
   }
 
-  // Para que desde ProductDetailScreen puedas agregar items al carrito,
-  // tendrías que usar callbacks o estado global. Por simplicidad,
-  // aquí solo mostramos el carrito.
-
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = [
-      HomeScreen(),
+      HomeScreen(goToPage: goToPage),
       ScanPage(onCodeScanned: _onCodeScanned),
-      CartScreen(items: carrito), // <-- Pasas la lista carrito
+      CartScreen(key: cartKey),
     ];
 
     return Scaffold(
-      body: pages[_selectedIndex],
+      body: IndexedStack(index: _selectedIndex, children: pages),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: const Color(0xFFFFF0D6),
         selectedItemColor: Colors.black87,
         unselectedItemColor: Colors.black54,
         currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
+          if (index == 2) {
+            cartKey.currentState?.refreshCart();
+          }
+        },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Inicio"),
           BottomNavigationBarItem(

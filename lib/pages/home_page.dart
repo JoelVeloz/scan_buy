@@ -5,37 +5,56 @@ import 'package:scan_buy/pages/product_detail.dart';
 final pb = PocketBase('https://scan-buy-local.recargaloya.com');
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final Function(int) goToPage; // callback
+
+  const HomeScreen({super.key, required this.goToPage});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _currentIndex = 0;
-
   final List<Map<String, String>> _categorias = const [
     {
       'titulo': 'Lácteos',
+      'slug': 'lacteos',
       'img':
           'https://images.unsplash.com/photo-1576045057995-568f588f82fb?q=80&w=800',
     },
     {
       'titulo': 'Frutas',
+      'slug': 'frutas',
       'img':
           'https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=800',
     },
     {
       'titulo': 'Verduras',
-      'img':
-          'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?q=80&w=800',
-    },
-    {
-      'titulo': 'Carnes',
+      'slug': 'verduras',
       'img':
           'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?q=80&w=800',
     },
   ];
+  Future<void> _filterByCategory(String slug) async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final records = await pb
+          .collection('products')
+          .getFullList(filter: "category = '$slug'");
+      setState(() {
+        _productos = records;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Error al filtrar productos: $e';
+        _isLoading = false;
+      });
+    }
+  }
 
   List<RecordModel> _productos = [];
   bool _isLoading = true;
@@ -167,7 +186,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   separatorBuilder: (_, __) => const SizedBox(width: 12),
                   itemBuilder: (context, index) {
                     final c = _categorias[index];
-                    return _CategoriaChip(titulo: c['titulo']!, img: c['img']!);
+                    return _CategoriaChip(
+                      titulo: c['titulo']!,
+                      img: c['img']!,
+                      onSelected: () {
+                        _filterByCategory(c['slug']!); // filtra usando el slug
+                      },
+                    );
                   },
                 ),
               ),
@@ -206,6 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           unidad: unidad,
                           img: imgUrl,
                           productId: p.id, // pasa el id aquí
+                          goToPage: widget.goToPage, // callback
                         );
                       }, childCount: _productos.length),
                     ),
@@ -246,37 +272,46 @@ class _HeaderBanner extends StatelessWidget {
 class _CategoriaChip extends StatelessWidget {
   final String titulo;
   final String img;
-  const _CategoriaChip({required this.titulo, required this.img});
+  final VoidCallback onSelected;
+
+  const _CategoriaChip({
+    required this.titulo,
+    required this.img,
+    required this.onSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 120,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: AspectRatio(
-              aspectRatio: 2.5,
-              child: Image.network(img, fit: BoxFit.cover),
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.35),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Text(
-              titulo,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
+    return GestureDetector(
+      onTap: onSelected,
+      child: SizedBox(
+        width: 120,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: AspectRatio(
+                aspectRatio: 2.5,
+                child: Image.network(img, fit: BoxFit.cover),
               ),
             ),
-          ),
-        ],
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.35),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                titulo,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -288,6 +323,7 @@ class _ProductCard extends StatelessWidget {
   final String unidad;
   final String img;
   final String productId;
+  final Function(int) goToPage; // callback
 
   const _ProductCard({
     required this.nombre,
@@ -295,6 +331,7 @@ class _ProductCard extends StatelessWidget {
     required this.unidad,
     required this.img,
     required this.productId,
+    required this.goToPage,
   });
 
   @override
@@ -310,7 +347,8 @@ class _ProductCard extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => ProductDetailScreen(productId: productId),
+              builder: (_) =>
+                  ProductDetailScreen(productId: productId, goToPage: goToPage),
             ),
           );
         },

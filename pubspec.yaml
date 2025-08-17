@@ -11,6 +11,8 @@ dependencies:
     sdk: flutter
   mobile_scanner: ^3.5.7
   pocketbase: ^0.23.0
+  shared_preferences: ^2.1.1
+  shared_preferences_web: ^2.1.1
 
 dev_dependencies:
   flutter_test:
